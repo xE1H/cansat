@@ -39,7 +39,7 @@ def gsm_loop():
         print(gsm.get_info())
         print(gsm.get_signal_strength())
 
-        gsm.http_request("http://sat.xe1h.xyz/sat/gsm", "POST", datapacker.pack(), "text/plain")
+        gsm.http_request("https://sat.xe1h.xyz/sat/gsm", "POST", datapacker.pack(), "text/plain")
 
 
 ########### SENSOR SETUP ############
@@ -59,6 +59,10 @@ radio_configuration.CHAN = 24
 radio_configuration.TRANSMISSION_MODE.enableRSSI = lora_e220_constants.RssiEnableByte.RSSI_ENABLED
 
 radio.set_configuration(radio_configuration)
+
+_, configuration = radio.get_configuration()
+
+lora_e220.print_configuration(configuration)
 
 radio.begin()
 
