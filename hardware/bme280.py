@@ -102,7 +102,7 @@ class BME280:
             self.dig_P6, self.dig_P7, self.dig_P8, self.dig_P9, \
             _, self.dig_H1 = unpack("<HhhHhhhhhhhhBB", dig_88_a1)
 
-        self.dig_H2, self.dig_H3, self.dig_H4,\
+        self.dig_H2, self.dig_H3, self.dig_H4, \
             self.dig_H5, self.dig_H6 = unpack("<hBbhb", dig_e1_e7)
         # unfold H4, H5, keeping care of a potential sign
         self.dig_H4 = (self.dig_H4 * 16) + (self.dig_H5 & 0xF)
@@ -201,8 +201,8 @@ class BME280:
         h = (((((raw_hum << 14) - (self.dig_H4 << 20) -
                 (self.dig_H5 * h)) + 16384) >> 15) *
              (((((((h * self.dig_H6) >> 10) *
-                (((h * self.dig_H3) >> 11) + 32768)) >> 10) + 2097152) *
-              self.dig_H2 + 8192) >> 14))
+                  (((h * self.dig_H3) >> 11) + 32768)) >> 10) + 2097152) *
+               self.dig_H2 + 8192) >> 14))
         h = h - (((((h >> 15) * (h >> 15)) >> 7) * self.dig_H1) >> 4)
         h = 0 if h < 0 else h
         h = 419430400 if h > 419430400 else h
@@ -264,5 +264,4 @@ class BME280:
         p = p / 256
 
         h = h / 1024
-        return ("{}C".format(t / 100), "{:.02f}hPa".format(p/100),
-                "{:.02f}%".format(h))
+        return t / 100, p / 100, h

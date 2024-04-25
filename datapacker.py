@@ -113,6 +113,9 @@ types = {
 
 size = sum([structure[i]["size"] for i in structure])  # 44 bytes == 352 bits\
 
+for i in structure:
+    structure[i]["value"] = 0
+
 def set_value(value, key):
     structure[key]["value"] = value * structure[key]["multiplier"]
 
@@ -122,9 +125,16 @@ def set_values(values):
         set_value(values[key], key)
 
 
-def pack():
+def pack(dbg = False):
     fmt = ">" + "".join([types[structure[i]["type"]] for i in structure])
-    s = struct.pack(fmt, *[int(structure[i].get("value", 0) * structure[i]["multiplier"]) for i in structure])
+
+    dt = []
+    for i in structure:
+        if dbg:
+            print(i, structure[i]["value"], structure[i].get("value", 0) * structure[i]["multiplier"])
+        dt.append(int(structure[i].get("value", 0) * structure[i]["multiplier"]))
+
+    s = struct.pack(fmt, *dt)
     # B64
     return ubinascii.b2a_base64(s).decode("utf-8")
 
