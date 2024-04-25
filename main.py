@@ -11,14 +11,14 @@ from hardware.imu import MPU6050
 ######## GENERAL SETUP  #########
 
 rtc = machine.RTC()
-sd = sdcard.SDCard(
-    machine.SoftSPI(baudrate=2_000_000, sck=machine.Pin(8), miso=machine.Pin(18), mosi=machine.Pin(21)),
-    cs=machine.Pin(9), baudrate=2_000_000)
-# sd = machine.SDCard(slot=2, miso=18, mosi=21, sck=8, cs=9, freq=2_000_000)
-
-os.mount(sd, "/sd")
-
-print(os.listdir("/sd"))
+# sd = sdcard.SDCard(
+#     machine.SoftSPI(baudrate=2_000_000, sck=machine.Pin(8), miso=machine.Pin(18), mosi=machine.Pin(21)),
+#     cs=machine.Pin(9), baudrate=2_000_000)
+# # sd = machine.SDCard(slot=2, miso=18, mosi=21, sck=8, cs=9, freq=2_000_000)
+#
+# os.mount(sd, "/sd")
+#
+# print(os.listdir("/sd"))
 
 ########## I2C SETUP ############
 i2c_main = machine.SoftI2C(scl=machine.Pin(11), sda=machine.Pin(12))
@@ -29,13 +29,13 @@ print([i for i in i2c_secondary.scan()])  # ['0x76' -- bme280]
 
 ###########  GSM SETUP   ############
 # gsm = sim800l.Modem(  # todo
-#     uart=machine.UART(2, tx=machine.Pin(17), rx=machine.Pin(16))
+#     uart=machine.UART(1, tx=machine.Pin(17), rx=machine.Pin(16))
 # )
 #
 # gsm.initialize()
 # gsm.connect('internet.tele2.lt')
-
-
+#
+#
 # def gsm_loop():
 #     while True:
 #         print(gsm.get_ip_addr())
@@ -54,11 +54,14 @@ ms5611 = ms5611.MS5611(i2c_main)  # todo
 bme = bme280.BME280(i2c=i2c_secondary, mode=4)
 
 ########### RADIO SETUP  ############
-radio = lora_e220.LoRaE220('400T22D', machine.UART(1, baudrate=9600, tx=machine.Pin(33), rx=machine.Pin(34)))
+radio_uart = machine.UART(1, baudrate=9600, tx=machine.Pin(33), rx=machine.Pin(34))
+
+radio = lora_e220.LoRaE220('400T22D', radio_uart, m1_pin=35, m0_pin=39)
 
 radio_configuration = lora_e220.Configuration("400T22D")
+#
+radio_configuration.CHAN = 42
 
-radio_configuration.CHAN = 24
 radio_configuration.TRANSMISSION_MODE.enableRSSI = lora_e220_constants.RssiEnableByte.RSSI_ENABLED
 
 code = radio.set_configuration(radio_configuration)
@@ -69,7 +72,7 @@ code, configuration = radio.get_configuration()
 
 print(code)
 
-lora_e220.print_configuration(configuration)
+# lora_e220.print_configuration(configuration)
 
 radio.begin()
 
@@ -77,9 +80,11 @@ radio.begin()
 def radio_loop():
     while True:
         dp = datapacker.pack()
-        code = radio.send_transparent_message(dp)
-        print("Sent 433")
-        utime.sleep_ms(20)
+        print(len(dp))
+        radio_uart.write(dp.encode("utf-8"))
+        #code = radio.send_broadcast_message(42, dp)
+        print("Sent 433 probably")
+        utime.sleep_ms(200)
 
 
 ###########  GPS SETUP   ############
@@ -122,8 +127,13 @@ def gps_loop():
 _thread.start_new_thread(radio_loop, ())
 # # _thread.start_new_thread(gsm_loop, ())
 
+led = machine.Pin(15, machine.Pin.OUT)
 
 while True:
+    if led.value() == 0:
+        led.value(1)
+    else:
+        led.value(0)
     _thread.start_new_thread(gps_loop, ())
 
     accel = mpu.accel.xyz
@@ -165,9 +175,10 @@ while True:
 
     # Save data to the SD card
     try:
-        with open(f"sd/data-{millis}", "a") as f:
-            f.write(datapacker.pack(True))
+        pass
+        # with open(f"sd/data-{millis}", "a") as f:
+        #     f.write(datapacker.pack(True))
     except OSError as e:
-        datapacker.pack(True)
+        datapacker.pack(False)
 
     utime.sleep_ms(20)

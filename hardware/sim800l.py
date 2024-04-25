@@ -123,6 +123,7 @@ class Modem(object):
             'battery': {'string': 'AT+CBC', 'timeout': 3, 'end': 'OK'},
             'scan': {'string': 'AT+COPS=?', 'timeout': 60, 'end': 'OK'},
             'network': {'string': 'AT+COPS?', 'timeout': 3, 'end': 'OK'},
+            'networkset': {'string': f'AT+COPS=1,1,"TELE2"', 'timeout': 120, 'end': 'OK'},
             'signal': {'string': 'AT+CSQ', 'timeout': 3, 'end': 'OK'},
             'checkreg': {'string': 'AT+CREG?', 'timeout': 3, 'end': None},
             'setapn': {'string': 'AT+SAPBR=3,1,"APN","{}"'.format(data), 'timeout': 3, 'end': 'OK'},
@@ -146,7 +147,8 @@ class Modem(object):
             'dopost': {'string': 'AT+HTTPACTION=1', 'timeout': 3, 'end': '+HTTPACTION'},
             'getdata': {'string': 'AT+HTTPREAD', 'timeout': 3, 'end': 'OK'},
             'closehttp': {'string': 'AT+HTTPTERM', 'timeout': 3, 'end': 'OK'},
-            'closebear': {'string': 'AT+SAPBR=0,1', 'timeout': 3, 'end': 'OK'}
+            'closebear': {'string': 'AT+SAPBR=0,1', 'timeout': 3, 'end': 'OK'},
+            'debug': {'string': 'AT+CMEE=1', 'timeout': 5, 'end': 'OK'}
         }
 
         # References:
@@ -265,6 +267,10 @@ class Modem(object):
             networks.append({'name': json.loads(subpieces[1]), 'shortname': json.loads(subpieces[2]),
                              'id': json.loads(subpieces[3])})
         return networks
+
+    def manual_set_network(self):
+        output = self.execute_at_command("networkset", "24603")
+        return output
 
     def get_current_network(self):
         output = self.execute_at_command('network')
