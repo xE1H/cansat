@@ -48,8 +48,8 @@ print([i for i in i2c_secondary.scan()])  # ['0x76' -- bme280]
 
 ########### SENSOR SETUP ############
 mpu = MPU6050(i2c_main, device_addr=1)
-# bmp = bmp280.BMP280(i2c_main)
-ms5611 = ms5611.MS5611(i2c_main)  # todo
+bmp = bmp280.BMP280(i2c_main, addr=0x77)
+# ms5611 = ms5611.MS5611(i2c_main)  # todo
 
 bme = bme280.BME280(i2c=i2c_secondary, mode=4)
 
@@ -79,12 +79,13 @@ radio.begin()
 
 def radio_loop():
     while True:
-        dp = datapacker.pack()
+        dp = datapacker.pack().replace("\n", "") + "@@@"
+        print(dp)
         print(len(dp))
         radio_uart.write(dp.encode("utf-8"))
         #code = radio.send_broadcast_message(42, dp)
         print("Sent 433 probably")
-        utime.sleep_ms(200)
+        utime.sleep_ms(1000)
 
 
 ###########  GPS SETUP   ############
@@ -139,7 +140,7 @@ while True:
     accel = mpu.accel.xyz
     gyro = mpu.gyro.xyz
     bme_temp, bme_pressure, bme_hum = bme.values
-    ms5611_temp, ms5611_pressure = ms5611.measurements
+    #ms5611_temp, ms5611_pressure = ms5611.measurements
 
     # millis since start of day
     # rtc.datetime() returns a tuple with the following format:
@@ -151,16 +152,16 @@ while True:
     d = {
         "time": millis,
 
-        # "temp_bmp": bmp.temperature,
+        "temp_bmp": bmp.temperature,
         "temp_mpu": mpu.temperature,
         "temp_bme": bme_temp,
-        "temp_ms5611": ms5611_temp,
+       # "temp_ms5611": ms5611_temp,
 
         "hum_bme": bme_hum,
 
-        # "baro_bmp": bmp.pressure,
+        "baro_bmp": bmp.pressure,
         "baro_bme": bme_pressure,
-        "baro_ms5611": ms5611_pressure,
+        #"baro_ms5611": ms5611_pressure,
 
         "acc_x": accel[0],
         "acc_y": accel[1],

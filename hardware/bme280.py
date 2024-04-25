@@ -264,4 +264,4 @@ class BME280:
         p = p / 256
 
         h = h / 1024
-        return t / 100, p / 100, h
+        return t / 10000, p / 100, h / 100

@@ -99,10 +99,29 @@ structure = {
         "type": "int",
         "size": 4,
         "multiplier": 1000
-    },
-
-
+    }
 }
+
+sequencing = [
+    "time",
+    "lat",
+    "lon",
+    "gps_sats",
+    "baro_bmp",
+    "baro_bme",
+    "baro_ms5611",
+    "temp_bmp",
+    "temp_mpu",
+    "temp_bme",
+    "temp_ms5611",
+    "hum_bme",
+    "acc_x",
+    "acc_y",
+    "acc_z",
+    "gyro_x",
+    "gyro_y",
+    "gyro_z"
+]
 
 types = {
     "int": "i",
@@ -129,21 +148,30 @@ def pack(dbg = False):
     fmt = ">" + "".join([types[structure[i]["type"]] for i in structure])
 
     dt = []
-    for i in structure:
+    for i in sequencing:
+        print(i, end=" ")
         if dbg:
             print(i, structure[i]["value"], structure[i].get("value", 0) * structure[i]["multiplier"])
         dt.append(int(structure[i].get("value", 0) * structure[i]["multiplier"]))
 
+    print()
+    print(dt)
+
     s = struct.pack(fmt, *dt)
     # B64
-    return ubinascii.b2a_base64(s).decode("utf-8")
+    b = ubinascii.b2a_base64(s).decode("utf-8")
+    print(b)
+    print(
+        "\n\n"
+    )
+    return b
 
 
 def unpack(data):
     # Return a dictionary with the values
     fmt = ">" + "".join([types[structure[i]["type"]] for i in structure])
     ub = ubinascii.a2b_base64(data)
-    unpacked = struct.unpack(fmt, data)
+    unpacked = struct.unpack(fmt, ub)
 
     return {list(structure.keys())[i]: unpacked[i] / list(structure.values())[i]["multiplier"] for i in
             range(len(structure))}
