@@ -8,22 +8,44 @@ structure = {
         "size": 4,
         "multiplier": 1
     },
+    "bat_v": {
+        "type": "unsigned short",
+        "size": 2,
+        "multiplier": 1000
+    },
 
     "lat": {
         "type": "int",
         "size": 4,
         # Scale down to 7 decimal places, should be enough
-        "multiplier": 10 ** 7
+        "multiplier": 10 ** 6
     },
     "lon": {
         "type": "int",
         "size": 4,
-        "multiplier": 10 ** 7
+        "multiplier": 10 ** 6
     },
     "gps_sats": {
+        "type": "unsigned char",
+        "size": 1,
+        "multiplier": 1
+    },
+
+    "gps_hdop": {
         "type": "unsigned short",
         "size": 2,
-        "multiplier": 1
+        "multiplier": 10
+    },
+    "gps_alt": {
+        "type": "unsigned short",
+        "size": 2,
+        "multiplier": 10
+    },
+
+    "gsm_signal": {
+        "type": "unsigned char",
+        "size": 1,
+        "multiplier": 100
     },
 
     "baro_bmp": {
@@ -104,9 +126,13 @@ structure = {
 
 sequencing = [
     "time",
+    "bat_v",
     "lat",
     "lon",
     "gps_sats",
+    "gps_hdop",
+    "gps_alt",
+    "gsm_signal",
     "baro_bmp",
     "baro_bme",
     "baro_ms5611",
@@ -127,7 +153,8 @@ types = {
     "int": "i",
     "unsigned int": "I",
     "short": "h",
-    "unsigned short": "H"
+    "unsigned short": "H",
+    "unsigned char": "B"
 }
 
 size = sum([structure[i]["size"] for i in structure])  # 44 bytes == 352 bits\
@@ -135,8 +162,9 @@ size = sum([structure[i]["size"] for i in structure])  # 44 bytes == 352 bits\
 for i in structure:
     structure[i]["value"] = 0
 
+
 def set_value(value, key):
-    structure[key]["value"] = value * structure[key]["multiplier"]
+    structure[key]["value"] = value
 
 
 def set_values(values):
@@ -144,26 +172,54 @@ def set_values(values):
         set_value(values[key], key)
 
 
-def pack(dbg = False):
-    fmt = ">" + "".join([types[structure[i]["type"]] for i in structure])
+dataminmax = {
+    "int": {
+        "min": -2147483648,
+        "max": 2147483647
+    },
+    "unsigned int": {
+        "min": 0,
+        "max": 4294967295
+    },
+    "short": {
+        "min": -32768,
+        "max": 32767
+    },
+    "unsigned short": {
+        "min": 0,
+        "max": 65535
+    },
+    "unsigned char": {
+        "min": 0,
+        "max": 255
+    }
+}
+
+
+def pack(dbg=False):
+    # fmt = ">" + "".join([types[structure[i]["type"]] for i in structure])
+    # Pack using sequiencing
+    fmt = ">" + "".join([types[structure[i]["type"]] for i in sequencing])
 
     dt = []
     for i in sequencing:
-        print(i, end=" ")
-        if dbg:
-            print(i, structure[i]["value"], structure[i].get("value", 0) * structure[i]["multiplier"])
-        dt.append(int(structure[i].get("value", 0) * structure[i]["multiplier"]))
+        val = structure[i]["value"] * structure[i]["multiplier"]
+        # print(i, "=", val, end="; ")
+        dt.append(int(val))
 
-    print()
-    print(dt)
+    # print()
+    # Check for int/short overflow
+    for i in sequencing:
+        if structure[i].get("value", 0) * structure[i]["multiplier"] < dataminmax[structure[i]["type"]]["min"] or \
+                structure[i].get("value", 0) * structure[i]["multiplier"] > dataminmax[structure[i]["type"]]["max"]:
+            raise Exception(
+                f"Overflow {i} {structure[i].get('value', 0)} {structure[i]['multiplier']} {structure[i].get('value', 0) * structure[i]['multiplier']} {dataminmax[structure[i]['type']]['min']} {dataminmax[structure[i]['type']]['max']}")
+        # print("Overflow", i, structure[i].get("value", 0), structure[i]["multiplier"], structure[i].get("value", 0) * structure[i]["multiplier"], dataminmax[structure[i]["type"]]["min"],
+        #      dataminmax[structure[i]["type"]]["max"])
 
     s = struct.pack(fmt, *dt)
     # B64
     b = ubinascii.b2a_base64(s).decode("utf-8")
-    print(b)
-    print(
-        "\n\n"
-    )
     return b
 
 

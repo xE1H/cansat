@@ -161,7 +161,8 @@ class MPU6050(object):
             raise MPUException(self._I2Cerror)
         chip_id = int(self.buf1[0])
         if chip_id != self._chip_id:
-            print(f"Unexpected chip ID: 0x{chip_id:02x}. Possible clone chip?")
+            pass
+            #print(f"Unexpected chip ID: 0x{chip_id:02x}. Possible clone chip?")
         return chip_id
 
     @property

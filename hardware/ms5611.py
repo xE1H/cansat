@@ -268,7 +268,7 @@ class MS5611:
 
         P = (SENS * D1 / 2 ** 21.0 - OFF) / 2 ** 15.0
 
-        return TEMP / 100, P / 1000
+        return TEMP / 100, P
 
     @property
     def temperature_oversample_rate(self) -> str:

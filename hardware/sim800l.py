@@ -2,32 +2,26 @@
 import time
 import json
 
+
 # Setup logging.
-try:
-    import logging
 
-    logger = logging.getLogger(__name__)
-except:
-    try:
-        import logger
-    except:
-        class Logger(object):
-            level = 'INFO'
+class Logger(object):
+    level = 'INFO'
 
-            @classmethod
-            def debug(cls, text):
-                if cls.level == 'DEBUG': print('DEBUG:', text)
+    @classmethod
+    def debug(cls, text):
+        if cls.level == 'DEBUG': print('DEBUG:', text)
 
-            @classmethod
-            def info(cls, text):
-                print('INFO:', text)
+    @classmethod
+    def info(cls, text):
+        print('INFO:', text)
 
-            @classmethod
-            def warning(cls, text):
-                print('WARN:', text)
+    @classmethod
+    def warning(cls, text):
+        print('WARN:', text)
 
 
-        logger = Logger()
+logger = Logger()
 
 
 class GenericATError(Exception):
@@ -132,7 +126,7 @@ class Modem(object):
             'initgprs': {'string': 'AT+SAPBR=3,1,"Contype","GPRS"', 'timeout': 3, 'end': 'OK'},
             # Appeared on hologram net here or below
             'opengprs': {'string': 'AT+SAPBR=1,1', 'timeout': 3, 'end': 'OK'},
-            'getbear': {'string': 'AT+SAPBR=2,1', 'timeout': 3, 'end': 'OK'},
+            'getbear': {'string': 'AT+SAPBR=2,1', 'timeout': 10, 'end': 'OK'},
             'inithttp': {'string': 'AT+HTTPINIT', 'timeout': 3, 'end': 'OK'},
             'sethttp': {'string': 'AT+HTTPPARA="CID",1', 'timeout': 3, 'end': 'OK'},
             'checkssl': {'string': 'AT+CIPSSL=?', 'timeout': 3, 'end': 'OK'},
@@ -148,7 +142,10 @@ class Modem(object):
             'getdata': {'string': 'AT+HTTPREAD', 'timeout': 3, 'end': 'OK'},
             'closehttp': {'string': 'AT+HTTPTERM', 'timeout': 3, 'end': 'OK'},
             'closebear': {'string': 'AT+SAPBR=0,1', 'timeout': 3, 'end': 'OK'},
-            'debug': {'string': 'AT+CMEE=1', 'timeout': 5, 'end': 'OK'}
+            'debug': {'string': 'AT+CMEE=1', 'timeout': 5, 'end': 'OK'},
+            'opentcp': {'string': 'AT+CIPSTART="TCP",{}'.format(data), 'timeout': 15, 'end': 'CONNECT OK'},
+            'sendtcp': {'string': 'AT+CIPSEND', 'timeout': 15, 'end': '> '},
+            'closetcp': {'string': 'AT+CIPCLOSE', 'timeout': 15, 'end': 'OK'},
         }
 
         # References:
@@ -191,11 +188,15 @@ class Modem(object):
                 logger.debug('Read "{}"'.format(line))
 
                 # Convert line to string
-                line_str = line.decode('utf-8')
+                try:
+                    line_str = line.decode('utf-8')
+                except UnicodeError:
+                    print(line)
+                    raise Exception('Error decoding line "{}"'.format(line))
 
                 # Do we have an error?
-                if line_str == 'ERROR\r\n':
-                    raise GenericATError('Got generic AT error')
+                if 'ERROR' in line_str:
+                    raise GenericATError(f'Got generic AT error {line_str} from command {command_string_for_at}')
 
                 # If we had a pre-end, do we have the expected end?
                 if line_str == '{}\r\n'.format(excpected_end):
@@ -362,7 +363,8 @@ class Modem(object):
         if ip_addr:
             raise Exception('Error, we should be disconnected but we still have an IP address ({})'.format(ip_addr))
 
-    def http_request(self, url, mode='GET', data=None, content_type='application/json'):
+    def http_request(self, url, mode='GET', data=None, content_type='application/json', should_close=True,
+                     should_open=True):
 
         # Protocol check.
         assert url.startswith('http'), 'Unable to handle communication protocol for URL "{}"'.format(url)
@@ -372,29 +374,30 @@ class Modem(object):
             raise Exception('Error, modem is not connected')
 
         # Close the http context if left open somehow
-        logger.debug('Close the http context if left open somehow...')
-        try:
-            self.execute_at_command('closehttp')
-        except GenericATError:
-            pass
+        if should_close:
+            logger.debug('Close the http context if left open somehow...')
+            try:
+                self.execute_at_command('closehttp')
+            except GenericATError:
+                pass
+        if should_open:
+            # First, init and set http
+            logger.debug('Http request step #1.1 (inithttp)')
+            self.execute_at_command('inithttp')
+            logger.debug('Http request step #1.2 (sethttp)')
+            self.execute_at_command('sethttp')
 
-        # First, init and set http
-        logger.debug('Http request step #1.1 (inithttp)')
-        self.execute_at_command('inithttp')
-        logger.debug('Http request step #1.2 (sethttp)')
-        self.execute_at_command('sethttp')
-
-        # Do we have to enable ssl as well?
-        if self.ssl_available:
-            if url.startswith('https://'):
-                logger.debug('Http request step #1.3 (enablessl)')
-                self.execute_at_command('enablessl')
-            elif url.startswith('http://'):
-                logger.debug('Http request step #1.3 (disablessl)')
-                self.execute_at_command('disablessl')
-        else:
-            if url.startswith('https://'):
-                raise NotImplementedError("SSL is only supported by firmware revisions >= R14.00")
+            # Do we have to enable ssl as well?
+            if self.ssl_available:
+                if url.startswith('https://'):
+                    logger.debug('Http request step #1.3 (enablessl)')
+                    self.execute_at_command('enablessl')
+                elif url.startswith('http://'):
+                    logger.debug('Http request step #1.3 (disablessl)')
+                    self.execute_at_command('disablessl')
+            else:
+                if url.startswith('https://'):
+                    raise NotImplementedError("SSL is only supported by firmware revisions >= R14.00")
 
         # Second, init and execute the request
         logger.debug('Http request step #2.1 (initurl)')
@@ -428,13 +431,39 @@ class Modem(object):
             raise Exception('Unknown mode "{}'.format(mode))
 
         # Third, get data
-        logger.debug('Http request step #4 (getdata)')
-        response_content = self.execute_at_command('getdata', clean_output=False)
-
-        logger.debug(response_content)
+        # logger.debug('Http request step #4 (getdata)')
+        # response_content = self.execute_at_command('getdata', clean_output=False)
+        #
+        # logger.debug(response_content)
 
         # Then, close the http context
-        logger.debug('Http request step #4 (closehttp)')
-        self.execute_at_command('closehttp')
+        if should_close:
+            logger.debug('Http request step #4 (closehttp)')
+            self.execute_at_command('closehttp')
 
-        return Response(status_code=response_status_code, content=response_content)
+        return Response(status_code=response_status_code, content="")
+
+    def open_tcp(self, host, port):
+        logger.debug('Opening TCP connection to {}:{}'.format(host, port))
+        self.execute_at_command('opentcp', f'"{host}","{port}"')
+
+        return True
+
+    def send_tcp(self, data):
+        logger.debug('Sending TCP')
+        self.execute_at_command('sendtcp')
+        # Write data
+        self.uart.write(data)
+        # Flush
+        self.uart.flush()
+        self.uart.write(b'\x1a')
+        self.uart.flush()
+        r = self.uart.read()
+        if b'ERROR' in r or b'CLOSED' in r:
+            raise Exception('Error sending TCP')
+
+        return True
+
+    def close_tcp(self):
+        logger.debug('Closing TCP connection')
+        self.execute_at_command('closetcp')
