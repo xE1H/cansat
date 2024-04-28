@@ -67,19 +67,14 @@ should_close = False
 def gsm_loop():
     global first_gsm_request, should_close
     utime.sleep_ms(10000)  # Do not overwhelm the modem with requests
+    gsm.open_tcp('130.61.136.101', 8018)
     while True:
         try:
             ip = gsm.get_ip_addr()
             datapacker.set_value(gsm.get_signal_strength(), "gsm_signal")
             if ip:
                 packed_data = datapacker.pack()
-                packed_data = packed_data.replace("\n", "").replace("+", "%2B").replace("=", "%3D").replace("/", "%2F")
-
-                gsm.http_request(f"http://130.61.136.101:8018/sat/gsm?data={packed_data}", "POST", "d",
-                                 should_close=should_close, should_open=first_gsm_request)
-                first_gsm_request = False
-                should_close = False
-                utime.sleep_ms(50)
+                gsm.send_tcp(packed_data)
             else:
                 # Not connected, wait
                 utime.sleep_ms(1000)
@@ -87,8 +82,8 @@ def gsm_loop():
         except Exception as e:
             log.log('GSM', f'Got exception while sending data: {e}', 'red')
             gsm_uart.read()  # Clear the buffer
-            should_close = True
-            first_gsm_request = True
+            gsm.close_tcp()
+            gsm.open_tcp('130.61.136.101', 8018)
             utime.sleep_ms(1000)
 
 
