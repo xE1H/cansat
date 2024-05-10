@@ -145,7 +145,7 @@ class Modem(object):
             'debug': {'string': 'AT+CMEE=1', 'timeout': 5, 'end': 'OK'},
             'opentcp': {'string': 'AT+CIPSTART="TCP",{}'.format(data), 'timeout': 15, 'end': 'CONNECT OK'},
             'sendtcp': {'string': 'AT+CIPSEND', 'timeout': 15, 'end': '> '},
-            'closetcp': {'string': 'AT+CIPCLOSE', 'timeout': 15, 'end': 'OK'},
+            'closetcp': {'string': 'AT+CIPCLOSE', 'timeout': 15, 'end': 'CLOSE OK'},
         }
 
         # References:
@@ -177,7 +177,7 @@ class Modem(object):
         while True:
 
             line = self.uart.readline()
-            if not line:
+            if not line and excpected_end != '> ':
                 time.sleep(1)
                 empty_reads += 1
                 if empty_reads > timeout:
@@ -193,6 +193,8 @@ class Modem(object):
                 except UnicodeError:
                     print(line)
                     raise Exception('Error decoding line "{}"'.format(line))
+                except:
+                    line_str = self.uart.read()
 
                 # Do we have an error?
                 if 'ERROR' in line_str:
@@ -445,25 +447,69 @@ class Modem(object):
 
     def open_tcp(self, host, port):
         logger.debug('Opening TCP connection to {}:{}'.format(host, port))
-        self.execute_at_command('opentcp', f'"{host}","{port}"')
+        # self.execute_at_command('opentcp', f'"{host}","{port}"')
+        self.uart.write(b'AT+CIPSTART="TCP","{}","{}"\r\n'.format(host, port))
+        self.uart.flush()
+        n = 10
+        while True:
+            l = self.uart.readline()
+            if l:
+                if b'CONNECT OK' in l:
+                    break
+                if b'ERROR' in l:
+                    raise Exception('Error connecting to TCP')
+            time.sleep(1)
+            n -= 1
+            if n == 0:
+                break
+                raise Exception('Timeout while connecting to TCP')
 
         return True
 
     def send_tcp(self, data):
         logger.debug('Sending TCP')
-        self.execute_at_command('sendtcp')
+        self.uart.write(b'AT+CIPSEND\r\n')
+        self.uart.flush()
+        n = 500
+        while True:
+            r = self.uart.read()
+            if r and b'>' in r:
+                break
+            time.sleep(0.01)
+            n -= 1
+            if n == 0:
+                break
+                raise Exception('Timeout while sending TCP')
+
         # Write data
         self.uart.write(data)
         # Flush
         self.uart.flush()
         self.uart.write(b'\x1a')
         self.uart.flush()
-        r = self.uart.read()
-        if b'ERROR' in r or b'CLOSED' in r:
-            raise Exception('Error sending TCP')
+        r = b""
+        n = 500
+        while True:
+            d = self.uart.readline()
+            if d:
+                r += d
+            if b'SEND OK' in r:
+                break
+            if b'ERROR' in r or b'CLOSED' in r:
+                raise Exception('Error sending TCP')
+            n -= 1
+            if n == 0:
+                print("timed out")
+                break
+                raise Exception('Timeout while sending TCP')
+
+            time.sleep(0.01)
 
         return True
 
     def close_tcp(self):
         logger.debug('Closing TCP connection')
-        self.execute_at_command('closetcp')
+        self.uart.write(b'\x1a')
+        self.uart.flush()
+        self.uart.write(b'AT+CIPCLOSE\r\n')
+        self.uart.flush()

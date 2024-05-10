@@ -40,6 +40,7 @@ THE SOFTWARE.
 from utime import sleep_ms
 from machine import I2C
 from hardware.vector3d import Vector3d
+import utime
 
 
 class MPUException(OSError):
@@ -71,10 +72,13 @@ class MPU6050(object):
     _mpu_addr = (104, 105)  # addresses of MPU9150/MPU6050. There can be two devices
     _chip_id = 104
 
-    def __init__(self, side_str, device_addr=None, transposition=(0, 1, 2), scaling=(1, 1, 1)):
+    def __init__(self, side_str, device_addr=None, transposition=(0, 1, 2), scaling=(1, 1, 1),
+                 gyro_calibration=(0, 0, 0), accel_calibration=(0, 0, 0)):
 
         self._accel = Vector3d(transposition, scaling, self._accel_callback)
         self._gyro = Vector3d(transposition, scaling, self._gyro_callback)
+        self._gyro_calibration = gyro_calibration
+        self._accel_calibration = accel_calibration
         self.buf1 = bytearray(1)  # Pre-allocated buffers for reads: allows reads to
         self.buf2 = bytearray(2)  # be done in interrupt handlers
         self.buf3 = bytearray(3)
@@ -112,7 +116,7 @@ class MPU6050(object):
 
     # read from device
     def _read(
-        self, buf, memaddr, addr
+            self, buf, memaddr, addr
     ):  # addr = I2C device address, memaddr = memory location within the I2C device
         """
         Read bytes to pre-allocated buffer Caller traps OSError.
@@ -162,7 +166,7 @@ class MPU6050(object):
         chip_id = int(self.buf1[0])
         if chip_id != self._chip_id:
             pass
-            #print(f"Unexpected chip ID: 0x{chip_id:02x}. Possible clone chip?")
+            # print(f"Unexpected chip ID: 0x{chip_id:02x}. Possible clone chip?")
         return chip_id
 
     @property
@@ -183,6 +187,44 @@ class MPU6050(object):
         except OSError:
             raise MPUException(self._I2Cerror)
         return bytes_toint(self.buf2[0], self.buf2[1]) / 340 + 35  # I think
+
+    def calibrate_gyro(self):
+        # Calibrate gyro - get values every 20ms for 15 seconds
+        values_x = []
+        values_y = []
+        values_z = []
+        for i in range(15 * (1000 / 20)):
+            x, y, z = self._gyro.xyz
+            values_x.append(x)
+            values_y.append(y)
+            values_z.append(z)
+            utime.sleep_ms(20)
+
+        # Calculate the average of the values
+        avg_x = sum(values_x) / len(values_x)
+        avg_y = sum(values_y) / len(values_y)
+        avg_z = sum(values_z) / len(values_z)
+
+        print("Average values of the gyro sensor are: x = {}, y = {}, z = {}".format(avg_x, avg_y, avg_z))
+
+    def calibrate_accel(self):
+        # Calibrate accel - get values every 20ms for 15 seconds
+        values_x = []
+        values_y = []
+        values_z = []
+        for i in range(15 * (1000 / 20)):
+            x, y, z = self._accel.xyz
+            values_x.append(x - 1)
+            values_y.append(y)
+            values_z.append(z)
+            utime.sleep_ms(20)
+
+        # Calculate the average of the values
+        avg_x = sum(values_x) / len(values_x)
+        avg_y = sum(values_y) / len(values_y)
+        avg_z = sum(values_z) / len(values_z)
+
+        print("Average values of the accel sensor are: x = {}, y = {}, z = {}".format(avg_x, avg_y, avg_z))
 
     # passthrough
     @property
@@ -205,7 +247,7 @@ class MPU6050(object):
             val = 2 if mode else 0
             try:
                 self._write(val, 0x37, self.mpu_addr)  # I think this is right.
-                self._write(0x00, 0x6A, self.mpu_addr)
+                # self._write(0x00, 0x6A, self.mpu_addr)
             except OSError:
                 raise MPUException(self._I2Cerror)
         else:
@@ -360,6 +402,10 @@ class MPU6050(object):
         self._accel._vector[1] = self._accel._ivector[1] / scale[self.accel_range]
         self._accel._vector[2] = self._accel._ivector[2] / scale[self.accel_range]
 
+        self._accel._vector[0] -= self._accel_calibration[0]
+        self._accel._vector[1] -= self._accel_calibration[1]
+        self._accel._vector[2] -= self._accel_calibration[2]
+
     def get_accel_irq(self):
         """
         For use in interrupt handlers. Sets self._accel._ivector[] to signed
@@ -393,6 +439,10 @@ class MPU6050(object):
         self._gyro._vector[0] = self._gyro._ivector[0] / scale[self.gyro_range]
         self._gyro._vector[1] = self._gyro._ivector[1] / scale[self.gyro_range]
         self._gyro._vector[2] = self._gyro._ivector[2] / scale[self.gyro_range]
+
+        self._gyro._vector[0] -= self._gyro_calibration[0]
+        self._gyro._vector[1] -= self._gyro_calibration[1]
+        self._gyro._vector[2] -= self._gyro_calibration[2]
 
     def get_gyro_irq(self):
         """
