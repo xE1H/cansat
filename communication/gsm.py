@@ -35,10 +35,12 @@ class GSM:
             self.modem.send_tcp(data)
         else:
             # Not connected, wait
-            utime.sleep_ms(1000)
+            self.modem.connect(GSM_APN)
             self.log.log('Not connected to GSM network', 'red')
+            utime.sleep_ms(1000)
 
     def open(self):
+        self.close()
         self.modem.open_tcp(DOWNSTREAM_IP, DOWNSTREAM_PORT)
 
     def close(self):

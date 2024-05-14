@@ -121,6 +121,60 @@ structure = {
         "type": "int",
         "size": 4,
         "multiplier": 1000
+    },
+    "mag_x": {
+        "type": "int",
+        "size": 4,
+        "multiplier": 1
+    },
+    "mag_y": {
+        "type": "int",
+        "size": 4,
+        "multiplier": 1
+    },
+    "mag_z": {
+        "type": "int",
+        "size": 4,
+        "multiplier": 1
+    },
+
+    "ahrs_x": {
+        "type": "int",
+        "size": 4,
+        "multiplier": 1000
+    },
+    "ahrs_y": {
+        "type": "int",
+        "size": 4,
+        "multiplier": 1000
+    },
+    "ahrs_z": {
+        "type": "int",
+        "size": 4,
+        "multiplier": 1000
+    },
+
+    "ens_tvoc": {
+        "type": "unsigned short",
+        "size": 2,
+        "multiplier": 1
+    },
+    "ens_eco2": {
+        "type": "unsigned short",
+        "size": 2,
+        "multiplier": 1
+    },
+
+    "als": {
+        "type": "unsigned short",
+        "size": 2,
+        "multiplier": 1
+    },
+
+    "vspd": {
+        "type": "int",
+        "size": 4,
+        "multiplier": 1000
     }
 }
 
@@ -146,7 +200,17 @@ sequencing = [
     "acc_z",
     "gyro_x",
     "gyro_y",
-    "gyro_z"
+    "gyro_z",
+    "mag_x",
+    "mag_y",
+    "mag_z",
+    "ahrs_x",
+    "ahrs_y",
+    "ahrs_z",
+    "ens_tvoc",
+    "ens_eco2",
+    "als",
+    "vspd"
 ]
 
 types = {

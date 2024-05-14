@@ -7,7 +7,7 @@ import datapacker
 import log
 from communication import radio433, gsm
 from modules import onboard_logger, gps, ahrs
-from hardware import bmp280, bme280, ms5611, battery, clock
+from hardware import bmp280, bme280, ms5611, battery, clock, bh1750, PiicoDev_ENS160
 
 log = log.Logger()
 log.log('Logging started', 'blue')
@@ -41,7 +41,11 @@ ahrs = ahrs.AHRS(i2c_main, clock)
 bmp = bmp280.BMP280(i2c_main, addr=0x77)
 ms5611 = ms5611.MS5611(i2c_secondary)
 
+bh1750 = bh1750.BH1750(0x23, i2c_secondary)
+bh1750.configure(bh1750.MEASUREMENT_MODE_CONTINUOUSLY, bh1750.RESOLUTION_HIGH, bh1750.MEASUREMENT_TIME_MIN)
+
 bme = bme280.BME280(i2c=i2c_secondary, mode=4)
+# ens160 = PiicoDev_ENS160.PiicoDev_ENS160(bus=i2c_secondary)
 
 log.log('Sensors initialized', 'green')
 radio_uart = machine.UART(1, baudrate=9600, tx=machine.Pin(33), rx=machine.Pin(34))
@@ -59,6 +63,26 @@ _thread.start_new_thread(gps.loop, ())
 _thread.start_new_thread(onboard_logger.loop, ())
 _thread.start_new_thread(ahrs.loop, ())
 
+
+def slow_sensor_loop():
+    while True:
+        bme_temp, bme_pressure, bme_hum = bme.values
+
+        ms5611_temp, ms5611_pressure = ms5611.measurements
+
+        datapacker.set_values({
+            "temp_bme": bme_temp,
+            "temp_ms5611": ms5611_temp,
+
+            "hum_bme": bme_hum,
+
+            "baro_bme": bme_pressure,
+            "baro_ms5611": ms5611_pressure
+        })
+        utime.sleep_ms(20)
+
+_thread.start_new_thread(slow_sensor_loop, ())
+
 log.log('Starting sensor loop', 'blue')
 while True:
     try:
@@ -71,9 +95,6 @@ while True:
         gyro = ahrs.gyro
         mag = ahrs.mag
 
-        bme_temp, bme_pressure, bme_hum = bme.values
-        ms5611_temp, ms5611_pressure = ms5611.measurements
-
         millis = clock.millis()
 
         d = {
@@ -82,14 +103,8 @@ while True:
 
             "temp_bmp": bmp.temperature,
             "temp_mpu": ahrs.temp,
-            "temp_bme": bme_temp,
-            "temp_ms5611": ms5611_temp,
-
-            "hum_bme": bme_hum,
 
             "baro_bmp": bmp.pressure,
-            "baro_bme": bme_pressure,
-            "baro_ms5611": ms5611_pressure,
 
             "acc_x": accel[0],
             "acc_y": accel[1],
@@ -101,11 +116,17 @@ while True:
 
             "mag_x": mag[0],
             "mag_y": mag[1],
-            "mag_z": mag[2]
+            "mag_z": mag[2],
+
+            "als": bh1750.measurement,
+
+            "ahrs_x": ahrs.pos[0],
+            "ahrs_y": ahrs.pos[1],
+            "ahrs_z": ahrs.pos[2]
         }
-
         datapacker.set_values(d)
+        print(d)
 
-        utime.sleep_ms(2)
+        utime.sleep_ms(20)
     except Exception as e:
         log.log(f'Got exception while reading data: {e}', 'red')

@@ -18,6 +18,7 @@ class AHRS:
         self.accel = [0, 0, 0]
         self.gyro = [0, 0, 0]
         self.mag = [0, 0, 0]
+        self.pos = (0, 0, 0)
         self.temp = 0
 
         self.clock = clock
@@ -34,9 +35,11 @@ class AHRS:
         self.temp = self.mpu.temperature
 
         self.mag = self.get_mag()
-        self.madgwick.update(matrix([[a * math.pi / 180 for a in self.gyro]]),
-                             matrix([[a for a in self.mpu.accel.xyz]]),
-                             matrix([[a] for a in self.mag]), t)
+        # self.madgwick.update(matrix([[a * math.pi / 180 for a in self.gyro]]),
+        #                      matrix([[a for a in self.mpu.accel.xyz]]),
+        #                      matrix([[a] for a in self.mag]), t)
+        #
+        # self.pos = self.position()
 
         # self.madgwick.update_imu(matrix([[a * math.pi / 180 for a in self.gyro]]), matrix([list(self.accel)]), t)
 
